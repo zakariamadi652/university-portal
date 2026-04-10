@@ -1,52 +1,126 @@
 <?php
-/**
- * index.php — Page d'accueil (Landing Page)
- * Système de Gestion de Scolarité
- */
-require_once 'config.php';
+// index.php - Authentication and Homepage
+session_start();
 
-// Si l'utilisateur est déjà connecté, on peut le rediriger vers son dashboard
-// ou le laisser voir la page d'accueil avec un bouton "Accéder au Dashboard"
-$isLogged = isLoggedIn();
-
-// Petite redirection interne si on clique sur "Accéder au Dashboard"
-if (isset($_GET['go']) && $_GET['go'] === 'dashboard') {
-    redirectToDashboard();
+// Database connection
+try {
+    $db = new PDO('mysql:host=localhost;dbname=gestion_scolarite;charset=utf8mb4', 'root', '');
+    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+} catch (PDOException $e) {
+    die("Database connection failed.");
 }
+
+// Security: Prevent session fixation
+if (!isset($_SESSION['initiated'])) {
+    session_regenerate_id(true);
+    $_SESSION['initiated'] = true;
+}
+
+// Handle Logout
+if (isset($_GET['logout'])) {
+    session_destroy();
+    header('Location: index.php');
+    exit;
+}
+
+// Handle Login
+$error = '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['login'])) {
+    $username = trim($_POST['username'] ?? '');
+    $password = $_POST['password'] ?? '';
+
+    $stmt = $db->prepare('SELECT * FROM utilisateurs WHERE username = ?');
+    $stmt->execute([$username]);
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($user && password_verify($password, $user['password'])) {
+        $_SESSION['user_id'] = $user['id'];
+        $_SESSION['user_role'] = $user['role'];
+        $_SESSION['username'] = $user['username'];
+        header('Location: dashboard.php');
+        exit;
+    } else {
+        $error = 'Identifiant ou mot de passe incorrect.';
+    }
+}
+
+$isLogged = isset($_SESSION['user_id']);
 ?>
 <!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Gestion de Scolarité — Système de gestion scolaire.">
-    <title>Bienvenue — Gestion Scolarité</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <title>University Portal</title>
     <link rel="stylesheet" href="style.css">
 </head>
-<body class="landing-page">
+<body>
 
-    <div class="home-center">
-        <div class="home-card">
-            <div class="home-logo">GS</div>
-            <h1 class="home-title">Gestion de Scolarité</h1>
-            <p class="home-sub">Système de Gestion Scolaire</p>
+<div class="header clearfix">
+    <img src="logo.png" alt="University Portal Logo">
+    <h1>University Portal</h1>
+    <div class="header-links">
+        <?php if ($isLogged): ?>
+            <a href="dashboard.php">Dashboard</a>
+            <a href="index.php?logout=1">Logout</a>
+        <?php else: ?>
+            <a href="index.php">Home</a>
+            <a href="index.php?login=1">Login</a>
+        <?php endif; ?>
+    </div>
+</div>
 
+<div class="container clearfix">
+    <img src="logo.png" alt="Logo" class="logo-large">
+    
+    <?php if (isset($_GET['login'])): ?>
+        <!-- Login Form -->
+        <h2 style="text-align: center;">Connexion</h2>
+        <?php if ($error): ?>
+            <div class="alert error"><?php echo htmlspecialchars($error); ?></div>
+        <?php endif; ?>
+        <form method="POST" action="index.php?login=1">
+            <label for="username">Nom d'utilisateur</label>
+            <input type="text" id="username" name="username" required>
+            
+            <label for="password">Mot de passe</label>
+            <input type="password" id="password" name="password" required>
+            
+            <div style="text-align: center;">
+                <button type="submit" class="btn">Se connecter</button>
+            </div>
+        </form>
+    <?php else: ?>
+        <!-- Homepage -->
+        <h2 style="text-align: center;">Welcome to University Portal</h2>
+        <p style="text-align: center;">A completely simple and flat management system.</p>
+        <div style="text-align: center; margin-bottom: 40px;">
             <?php if ($isLogged): ?>
-                <a href="index.php?go=dashboard" class="btn btn-primary btn-full">Accéder au Dashboard</a>
-                <a href="logout.php" class="btn btn-secondary btn-full" style="margin-top: 10px;">Se Déconnecter</a>
+                <a href="dashboard.php" class="btn">Accéder au Dashboard</a>
             <?php else: ?>
-                <a href="login.php" class="btn btn-primary btn-full">Se Connecter</a>
+                <a href="index.php?login=1" class="btn">Se connecter</a>
             <?php endif; ?>
         </div>
 
-        <p class="home-footer">© 2025/2026 Gestion de Scolarité — Développé par LAACHEMI</p>
-    </div>
+        <div class="clearfix">
+            <div class="feature">
+                <h3>Admin</h3>
+                <p>Manage users easily.</p>
+            </div>
+            <div class="feature">
+                <h3>Teachers</h3>
+                <p>Input grades quickly.</p>
+            </div>
+            <div class="feature">
+                <h3>Students</h3>
+                <p>View transcripts online.</p>
+            </div>
+        </div>
+    <?php endif; ?>
+</div>
 
-
-
+<div class="footer">
+    © 2025/2026 University Portal - Simple Version
+</div>
 
 </body>
 </html>

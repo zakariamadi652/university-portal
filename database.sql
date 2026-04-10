@@ -1,5 +1,5 @@
 -- ============================================================
--- Gestion de Scolarité — Base de données
+-- University Portal — Base de données
 -- Module: Programmation Web (LAACHEMI 2025/2026)
 -- ============================================================
 
