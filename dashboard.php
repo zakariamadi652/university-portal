@@ -155,8 +155,8 @@ $search = trim($_GET['search'] ?? '');
 
     <div class="header">
         <div style="display:flex;align-items:center;">
-            <img src="logo.png" alt="Logo">
-            <h1>University Portal</h1>
+            <img src="logo.png?v=2" alt="Logo">
+            <h1>USTHB</h1>
         </div>
         <div class="header-links">
             <a href="home.php?logout=1">Logout</a>

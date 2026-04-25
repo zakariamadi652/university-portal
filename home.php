@@ -49,15 +49,14 @@ try {
 
     <div class="header">
         <div style="display: flex; align-items: center;">
-            <img src="logo.png" alt="University Portal Logo">
-            <h1>University Portal</h1>
+            <img src="logo.png?v=2" alt="University Portal Logo">
+            <h1>USTHB</h1>
         </div>
         <div class="header-links">
             <?php if ($isLogged): ?>
 
                 <a href="home.php?logout=1">Logout</a>
             <?php else: ?>
-                <a href="home.php">Home</a>
                 <a href="login.php">Login</a>
             <?php endif; ?>
         </div>
@@ -67,8 +66,8 @@ try {
 
         <!-- Hero Section -->
         <div class="hero">
-            <img src="logo.png" alt="Logo" style="width: 80px; border-radius: 16px; margin-bottom: 18px;">
-            <h2>Welcome to University Portal</h2>
+            <img src="logo.png?v=2" alt="Logo" style="width: 80px; border-radius: 16px; margin-bottom: 18px;">
+            <h2>Welcome to University Portal for USTHB</h2>
             <p>A modern, streamlined platform for managing students, teachers, modules, and grades — all in one place.
             </p>
             <div>
@@ -121,7 +120,7 @@ try {
     </div>
 
     <div class="footer">
-        © 2025/2026 University Portal
+        © 2025/2026 USTHB
     </div>
 
 </body>

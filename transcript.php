@@ -41,8 +41,8 @@ $student_name = $student_info['nom'] . ' ' . $student_info['prenom'];
 <body onload="window.print()">
 
 <div class="header">
-    <img src="logo.png" alt="University Portal">
-    <h1>University Portal</h1>
+    <img src="logo.png?v=2" alt="University Portal">
+    <h1>USTHB</h1>
     <h2>Relevé de Notes</h2>
 </div>
 
@@ -87,7 +87,7 @@ $student_name = $student_info['nom'] . ' ' . $student_info['prenom'];
 <?php endif; ?>
 
 <div class="footer">
-    Document officiel - University Portal
+    Document officiel - USTHB
 </div>
 
 </body>

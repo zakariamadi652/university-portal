@@ -1,7 +1,4 @@
--- ============================================================
--- University Portal — Base de données
--- Module: Programmation Web (LAACHEMI 2025/2026)
--- ============================================================
+University Portal Base de données
 
 DROP DATABASE IF EXISTS gestion_scolarite;
 CREATE DATABASE gestion_scolarite CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -33,9 +30,8 @@ CREATE TABLE enseignants (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
--- ------------------------------------------------------------
--- Table: modules
--- ------------------------------------------------------------
+--Table: modules
+-- 
 CREATE TABLE modules (
     id INT AUTO_INCREMENT PRIMARY KEY,
     code_module VARCHAR(20) NOT NULL UNIQUE,

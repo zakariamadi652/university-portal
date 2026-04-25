@@ -63,14 +63,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Login to University Portal">
+    <meta name="description" content="Login to University Portal for USTHB">
     <title>Login — University Portal</title>
     <link rel="stylesheet" href="style.css?v=<?php echo time(); ?>">
 </head>
 
 <body style="background: #e0e7ff; min-height: 100vh;">
     <div class="login-box">
-        <img src="logo.png" alt="UP" style="display: block; margin: 0 auto 16px auto; height: 56px; border-radius: 12px;">
+        <img src="logo.png?v=2" alt="UP" style="display: block; margin: 0 auto 16px auto; height: 56px; border-radius: 12px;">
         <h2>Welcome Back</h2>
         <p class="login-subtitle">Sign in with your username or email</p>
         
@@ -91,7 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </form>
         
         <div style="text-align: center; margin-top: 20px;">
-            <a href="home.php" class="back-link">← Back to Home</a>
+            <a href="home.php" class="back-link">Back to Home</a>
         </div>
     </div>
 </body>

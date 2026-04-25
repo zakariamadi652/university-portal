@@ -75,7 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <div class="header">
         <div style="display:flex;align-items:center;">
-            <img src="logo.png" alt="Logo">
+            <img src="logo.png?v=2" alt="Logo">
             <h1>University Portal</h1>
         </div>
         <div class="header-links">
