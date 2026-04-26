@@ -1,8 +1,8 @@
 <?php
-// create_teacher.php - Add New Teacher Page (Simplified for beginners)
+// creating_teacher
 session_start();
 
-// Check if the user is an Admin. If not, send them back to login.
+// Check if the user is an Admin, otherwise send them back
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] != 'Admin') {
     header('Location: login.php');
     exit;
@@ -11,7 +11,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] != 'Admin') {
 $user_role = $_SESSION['user_role'];
 $username = $_SESSION['username'];
 
-// Connect to the database
+// Connecting to database
 try {
     $db = new PDO('mysql:host=localhost;dbname=gestion_scolarite;charset=utf8mb4', 'root', '');
     $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
@@ -22,7 +22,7 @@ try {
 $status_message = '';
 $message_type = '';
 
-// Process the form if it was submitted
+// Processing the form if it was submitted
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     
     if (isset($_POST['action']) && $_POST['action'] == 'add_teacher') {
@@ -49,17 +49,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $insert_teacher_query = $db->prepare('INSERT INTO teachers (last_name, first_name, email, specialty) VALUES (?, ?, ?, ?)');
                 $insert_teacher_query->execute([$last_name, $first_name, $email, $specialty]);
                 
-                // Get the ID of the teacher we just created
+                // Get the id of the teacher we just created
                 $new_teacher_id = $db->lastInsertId();
 
-                // Create a login account for this new teacher
-                // The email will be the username, and the default password will be 'teacher123'
+                // Create a login account for this new teacher The email will be the username, and the default password will be teacher123
                 $default_password = 'teacher123';
                 $hashed_password = password_hash($default_password, PASSWORD_DEFAULT);
-                
                 $create_user_query = $db->prepare('INSERT INTO users (username, password, role, reference_id) VALUES (?, ?, ?, ?)');
                 $create_user_query->execute([$email, $hashed_password, 'Teacher', $new_teacher_id]);
-
                 $status_message = "Teacher added! Login: " . $email . " / Password: " . $default_password;
                 $message_type = 'success';
             }
@@ -91,16 +88,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             <a href="index.php?logout=1">Logout</a>
         </div>
     </div>
-
     <div class="container">
         <div class="user-badge">
             Logged in as: <strong><?php echo htmlspecialchars($username); ?></strong>
             (<?php echo htmlspecialchars($user_role); ?>)
         </div>
-
         <a href="dashboard.php?tab=teachers" class="back-link" style="margin-bottom:20px;display:inline-flex;">← Back to
             Teacher List</a>
-
         <?php if ($status_message != '') { ?>
             <?php 
             $alert_class = "alert";
