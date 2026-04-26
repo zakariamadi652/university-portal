@@ -1,59 +1,85 @@
 <?php
-// login.php - Login page with email support
+// login.php - Login page with email support (Simplified for beginners)
 session_start();
 
+// If the user is already logged in, send them to the dashboard
 if (isset($_SESSION['user_id'])) {
     header('Location: dashboard.php');
     exit;
 }
 
-$error = '';
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+$login_error_message = '';
+
+// Check if the form was submitted
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     try {
+        // Connect to the database
         $db = new PDO('mysql:host=localhost;dbname=gestion_scolarite;charset=utf8mb4', 'root', '');
         $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         
-        $login_input = trim($_POST['username'] ?? '');
-        $password = $_POST['password'] ?? '';
-
-        // Try username first
-        $stmt = $db->prepare('SELECT * FROM utilisateurs WHERE username = ?');
-        $stmt->execute([$login_input]);
-        $user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        // If not found by username, try to find by email (for students)
-        if (!$user) {
-            $stmt = $db->prepare('
-                SELECT u.* FROM utilisateurs u
-                JOIN etudiants e ON u.id_ref = e.id AND u.role = "Etudiant"
-                WHERE e.email = ?
-            ');
-            $stmt->execute([$login_input]);
-            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        // Get the inputted username and password
+        $login_username = "";
+        if (isset($_POST['username'])) {
+            $login_username = trim($_POST['username']);
         }
 
-        // If still not found, try teacher email
-        if (!$user) {
-            $stmt = $db->prepare('
-                SELECT u.* FROM utilisateurs u
-                JOIN enseignants e ON u.id_ref = e.id AND u.role = "Enseignant"
-                WHERE e.email = ?
-            ');
-            $stmt->execute([$login_input]);
-            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        $login_password = "";
+        if (isset($_POST['password'])) {
+            $login_password = $_POST['password'];
         }
 
-        if ($user && password_verify($password, $user['password'])) {
-            $_SESSION['user_id'] = $user['id'];
-            $_SESSION['user_role'] = $user['role'];
-            $_SESSION['username'] = $user['username'];
-            header('Location: dashboard.php');
-            exit;
+        $found_user = false;
+
+        // 1. Try to find the user by their username
+        $find_by_username_query = $db->prepare('SELECT * FROM users WHERE username = ?');
+        $find_by_username_query->execute([$login_username]);
+        $found_user = $find_by_username_query->fetch(PDO::FETCH_ASSOC);
+
+        // 2. If not found by username, try to find a student by their email
+        if ($found_user == false) {
+            $find_student_query = $db->prepare('
+                SELECT users.* FROM users 
+                JOIN students ON users.reference_id = students.id AND users.role = "Student"
+                WHERE students.email = ?
+            ');
+            $find_student_query->execute([$login_username]);
+            $found_user = $find_student_query->fetch(PDO::FETCH_ASSOC);
+        }
+
+        // 3. If still not found, try to find a teacher by their email
+        if ($found_user == false) {
+            $find_teacher_query = $db->prepare('
+                SELECT users.* FROM users 
+                JOIN teachers ON users.reference_id = teachers.id AND users.role = "Teacher"
+                WHERE teachers.email = ?
+            ');
+            $find_teacher_query->execute([$login_username]);
+            $found_user = $find_teacher_query->fetch(PDO::FETCH_ASSOC);
+        }
+
+        // 4. Verify the password if a user was found
+        if ($found_user != false) {
+            
+            $is_password_correct = password_verify($login_password, $found_user['password']);
+            
+            if ($is_password_correct == true) {
+                // Password is correct, log them in
+                $_SESSION['user_id'] = $found_user['id'];
+                $_SESSION['user_role'] = $found_user['role'];
+                $_SESSION['username'] = $found_user['username'];
+                
+                header('Location: dashboard.php');
+                exit;
+            } else {
+                $login_error_message = 'Incorrect password.';
+            }
+
         } else {
-            $error = 'Incorrect username/email or password.';
+            $login_error_message = 'Username or email not found.';
         }
+
     } catch (PDOException $e) {
-        $error = "Database error.";
+        $login_error_message = "Database error. Please try again later.";
     }
 }
 ?>
@@ -74,9 +100,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <h2>Welcome Back</h2>
         <p class="login-subtitle">Sign in with your username or email</p>
         
-        <?php if ($error): ?>
-            <div class="alert error"><?php echo htmlspecialchars($error); ?></div>
-        <?php endif; ?>
+        <?php if ($login_error_message != '') { ?>
+            <div class="alert error"><?php echo htmlspecialchars($login_error_message); ?></div>
+        <?php } ?>
 
         <form action="login.php" method="POST">
             <div>
@@ -91,7 +117,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </form>
         
         <div style="text-align: center; margin-top: 20px;">
-            <a href="home.php" class="back-link">Back to Home</a>
+            <a href="index.php" class="back-link">Back to Home</a>
         </div>
     </div>
 </body>

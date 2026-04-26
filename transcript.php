@@ -1,15 +1,16 @@
 <?php
-// transcript.php - Simple printable transcript
+// transcript.php - Simple printable transcript (Simplified for beginners)
 session_start();
 
-if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'Etudiant') {
+// Check if user is logged in and is a student
+if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] != 'Student') {
     die("Access denied.");
 }
 
 $user_id = $_SESSION['user_id'];
 $username = $_SESSION['username'];
 
-// DB connection
+// Connect to database
 try {
     $db = new PDO('mysql:host=localhost;dbname=gestion_scolarite;charset=utf8mb4', 'root', '');
     $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
@@ -17,14 +18,19 @@ try {
     die("Database connection failed.");
 }
 
-$etu_id = $db->query("SELECT id_ref FROM utilisateurs WHERE id = $user_id")->fetchColumn();
-$student_info = $db->query("SELECT * FROM etudiants WHERE id = $etu_id")->fetch(PDO::FETCH_ASSOC);
+// Get the actual student ID from the users table
+$get_student_id_query = $db->query("SELECT reference_id FROM users WHERE id = $user_id");
+$student_actual_id = $get_student_id_query->fetchColumn();
 
-$niveau = $student_info['niveau'];
-$student_name = $student_info['nom'] . ' ' . $student_info['prenom'];
+// Get the student's personal information
+$get_student_info_query = $db->query("SELECT * FROM students WHERE id = $student_actual_id");
+$student_info = $get_student_info_query->fetch(PDO::FETCH_ASSOC);
+
+$study_level = $student_info['study_level'];
+$student_full_name = $student_info['last_name'] . ' ' . $student_info['first_name'];
 ?>
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <title>Transcript - <?php echo htmlspecialchars($username); ?></title>
@@ -43,51 +49,62 @@ $student_name = $student_info['nom'] . ' ' . $student_info['prenom'];
 <div class="header">
     <img src="logo.png?v=2" alt="University Portal">
     <h1>USTHB</h1>
-    <h2>Relevé de Notes</h2>
+    <h2>Academic Transcript</h2>
 </div>
 
-<p><strong>Étudiant:</strong> <?php echo htmlspecialchars($student_name); ?></p>
-<p><strong>Niveau:</strong> <?php echo htmlspecialchars($niveau); ?></p>
-<p><strong>Année:</strong> 2025/2026</p>
+<p><strong>Student:</strong> <?php echo htmlspecialchars($student_full_name); ?></p>
+<p><strong>Study Level:</strong> <?php echo htmlspecialchars($study_level); ?></p>
+<p><strong>Academic Year:</strong> 2025/2026</p>
 
 <table>
     <tr>
-        <th>Module</th>
+        <th>Module Name</th>
         <th>Coefficient</th>
-        <th>Note (/20)</th>
+        <th>Grade (/20)</th>
     </tr>
     <?php
-    $stmt = $db->prepare("
-        SELECT m.intitule as nom_module, m.coefficient, n.note 
-        FROM modules m
-        LEFT JOIN notes n ON m.id = n.id_module AND n.id_etudiant = ?
+    // Get all modules and the student's grades
+    $get_grades_query = $db->prepare("
+        SELECT modules.module_name, modules.coefficient, grades.grade_value 
+        FROM modules 
+        LEFT JOIN grades ON modules.id = grades.module_id AND grades.student_id = ?
     ");
-    $stmt->execute([$etu_id]);
+    $get_grades_query->execute([$student_actual_id]);
+    $grades_list = $get_grades_query->fetchAll(PDO::FETCH_ASSOC);
     
     $total_points = 0;
-    $total_coeffs = 0;
+    $total_coefficients = 0;
 
-    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r): 
-        if ($r['note'] !== null) {
-            $total_points += $r['note'] * $r['coefficient'];
-            $total_coeffs += $r['coefficient'];
+    foreach ($grades_list as $grade_info) { 
+        if ($grade_info['grade_value'] != null) {
+            $points = $grade_info['grade_value'] * $grade_info['coefficient'];
+            $total_points = $total_points + $points;
+            $total_coefficients = $total_coefficients + $grade_info['coefficient'];
         }
     ?>
     <tr>
-        <td><?php echo htmlspecialchars($r['nom_module']); ?></td>
-        <td><?php echo $r['coefficient']; ?></td>
-        <td><?php echo ($r['note'] !== null) ? $r['note'] : 'N/A'; ?></td>
+        <td><?php echo htmlspecialchars($grade_info['module_name']); ?></td>
+        <td><?php echo $grade_info['coefficient']; ?></td>
+        <td>
+            <?php 
+            if ($grade_info['grade_value'] != null) {
+                echo $grade_info['grade_value'];
+            } else {
+                echo 'N/A';
+            }
+            ?>
+        </td>
     </tr>
-    <?php endforeach; ?>
+    <?php } ?>
 </table>
 
-<?php if ($total_coeffs > 0): ?>
-    <?php $avg = $total_points / $total_coeffs; ?>
-    <h3 style="text-align: right; margin-top: 20px;">Moyenne Générale: <?php echo number_format($avg, 2); ?> / 20</h3>
-<?php endif; ?>
+<?php if ($total_coefficients > 0) { ?>
+    <?php $average = $total_points / $total_coefficients; ?>
+    <h3 style="text-align: right; margin-top: 20px;">Overall Average: <?php echo number_format($average, 2); ?> / 20</h3>
+<?php } ?>
 
 <div class="footer">
-    Document officiel - USTHB
+    Official Document - USTHB
 </div>
 
 </body>

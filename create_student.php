@@ -1,15 +1,17 @@
 <?php
-// create_student.php - Add New Student Page
+// create_student.php - Add New Student Page (Simplified for beginners)
 session_start();
 
-if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'Admin') {
+// Check if the user is an Admin. If not, send them back to login.
+if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] != 'Admin') {
     header('Location: login.php');
     exit;
 }
 
-$role = $_SESSION['user_role'];
+$user_role = $_SESSION['user_role'];
 $username = $_SESSION['username'];
 
+// Connect to the database
 try {
     $db = new PDO('mysql:host=localhost;dbname=gestion_scolarite;charset=utf8mb4', 'root', '');
     $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
@@ -17,52 +19,72 @@ try {
     die("Database connection failed.");
 }
 
-$message = '';
-$msg_type = '';
+$status_message = '';
+$message_type = '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['action']) && $_POST['action'] === 'add_student') {
-        $nom = trim($_POST['nom'] ?? '');
-        $prenom = trim($_POST['prenom'] ?? '');
-        $email = trim($_POST['email'] ?? '');
-        $date_naissance = $_POST['date_naissance'] ?? '';
-        $niveau = $_POST['niveau'] ?? '';
+// Process the form if it was submitted
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    
+    if (isset($_POST['action']) && $_POST['action'] == 'add_student') {
+        
+        // Get data from the form
+        $last_name = trim($_POST['last_name']);
+        $first_name = trim($_POST['first_name']);
+        $email = trim($_POST['email']);
+        $date_of_birth = $_POST['date_of_birth'];
+        $study_level = $_POST['study_level'];
 
-        if ($nom && $prenom && $email && $date_naissance && $niveau) {
-            // Check if email is already used
-            $check = $db->prepare('SELECT COUNT(*) FROM etudiants WHERE email = ?');
-            $check->execute([$email]);
-            if ($check->fetchColumn() > 0) {
-                $message = "A student with this email already exists.";
-                $msg_type = 'error';
+        // Make sure all fields are filled
+        if ($last_name != '' && $first_name != '' && $email != '' && $date_of_birth != '' && $study_level != '') {
+            
+            // Check if email is already used by another student
+            $check_email_query = $db->prepare('SELECT COUNT(*) FROM students WHERE email = ?');
+            $check_email_query->execute([$email]);
+            $email_count = $check_email_query->fetchColumn();
+            
+            if ($email_count > 0) {
+                $status_message = "A student with this email already exists.";
+                $message_type = 'error';
             } else {
-                // Generate matricule
-                $year = date('Y');
-                $count = $db->query("SELECT COUNT(*) FROM etudiants")->fetchColumn() + 1;
-                $matricule = "ETU" . $year . str_pad($count, 3, '0', STR_PAD_LEFT);
+                // Generate a new student number (matricule)
+                $current_year = date('Y');
+                
+                // Count how many students exist to generate the next number
+                $count_students_query = $db->query("SELECT COUNT(*) FROM students");
+                $number_of_students = $count_students_query->fetchColumn();
+                $next_number = $number_of_students + 1;
+                
+                // Make it look like ETU2025001
+                // str_pad adds zeroes to the left if the number is less than 3 digits
+                $padded_number = str_pad($next_number, 3, '0', STR_PAD_LEFT);
+                $new_student_number = "ETU" . $current_year . $padded_number;
 
-                // Insert student
-                $stmt = $db->prepare('INSERT INTO etudiants (matricule, nom, prenom, email, date_naissance, niveau) VALUES (?, ?, ?, ?, ?, ?)');
-                $stmt->execute([$matricule, $nom, $prenom, $email, $date_naissance, $niveau]);
-                $etu_id = $db->lastInsertId();
+                // Insert the new student into the students table
+                $insert_student_query = $db->prepare('INSERT INTO students (student_number, last_name, first_name, email, date_of_birth, study_level) VALUES (?, ?, ?, ?, ?, ?)');
+                $insert_student_query->execute([$new_student_number, $last_name, $first_name, $email, $date_of_birth, $study_level]);
+                
+                // Get the ID of the student we just created
+                $new_student_id = $db->lastInsertId();
 
-                // Create login account: email is the username, default password is the matricule
-                $pw = password_hash($matricule, PASSWORD_DEFAULT);
-                $stmt2 = $db->prepare('INSERT INTO utilisateurs (username, password, role, id_ref) VALUES (?, ?, ?, ?)');
-                $stmt2->execute([$email, $pw, 'Etudiant', $etu_id]);
+                // Create a login account for this new student
+                // The email will be the username, and the student number will be the password
+                $hashed_password = password_hash($new_student_number, PASSWORD_DEFAULT);
+                
+                $create_user_query = $db->prepare('INSERT INTO users (username, password, role, reference_id) VALUES (?, ?, ?, ?)');
+                $create_user_query->execute([$email, $hashed_password, 'Student', $new_student_id]);
 
-                $message = "Student added! Matricule: $matricule — Login: $email / Password: $matricule";
-                $msg_type = 'success';
+                $status_message = "Student added! Number: " . $new_student_number . " — Login: " . $email . " / Password: " . $new_student_number;
+                $message_type = 'success';
             }
         } else {
-            $message = "Please fill in all fields.";
-            $msg_type = 'error';
+            $status_message = "Please fill in all fields.";
+            $message_type = 'error';
         }
     }
 }
 ?>
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 
 <head>
     <meta charset="UTF-8">
@@ -79,23 +101,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <h1>University Portal</h1>
         </div>
         <div class="header-links">
-            <a href="home.php?logout=1">Logout</a>
+            <a href="index.php?logout=1">Logout</a>
         </div>
     </div>
 
     <div class="container">
         <div class="user-badge">
             Logged in as: <strong><?php echo htmlspecialchars($username); ?></strong>
-            (<?php echo htmlspecialchars($role); ?>)
+            (<?php echo htmlspecialchars($user_role); ?>)
         </div>
 
         <a href="dashboard.php?tab=students" class="back-link" style="margin-bottom:20px;display:inline-flex;">← Back to
             Student List</a>
 
-        <?php if ($message): ?>
-            <div class="alert <?php echo $msg_type === 'error' ? 'error' : ''; ?>"><?php echo htmlspecialchars($message); ?>
+        <?php if ($status_message != '') { ?>
+            <?php 
+            $alert_class = "alert";
+            if ($message_type == 'error') {
+                $alert_class = "alert error";
+            }
+            ?>
+            <div class="<?php echo $alert_class; ?>">
+                <?php echo htmlspecialchars($status_message); ?>
             </div>
-        <?php endif; ?>
+        <?php } ?>
 
         <h2>Add New Student</h2>
 
@@ -103,22 +132,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <input type="hidden" name="action" value="add_student">
 
             <label>First Name:</label>
-            <input type="text" name="prenom" required placeholder="Enter first name">
+            <input type="text" name="first_name" required placeholder="Enter first name">
 
             <label>Last Name:</label>
-            <input type="text" name="nom" required placeholder="Enter last name">
+            <input type="text" name="last_name" required placeholder="Enter last name">
 
             <label>Email (used for login):</label>
             <input type="email" name="email" required placeholder="student@university.dz">
 
             <label>Date of Birth:</label>
-            <input type="date" name="date_naissance" required>
+            <input type="date" name="date_of_birth" required>
 
             <label>Level:</label>
-            <select name="niveau" required>
-                <option value="L1 Informatique">L1 Informatique</option>
-                <option value="L2 Informatique">L2 Informatique</option>
-                <option value="L3 Informatique" selected>L3 Informatique</option>
+            <select name="study_level" required>
+                <option value="L1 Computer Science">L1 Computer Science</option>
+                <option value="L2 Computer Science">L2 Computer Science</option>
+                <option value="L3 Computer Science" selected>L3 Computer Science</option>
             </select>
 
             <div style="display:flex;gap:12px;margin-top:8px;">
@@ -129,7 +158,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     </div>
 
-    <div class="footer">© 2025/2026 University Portal</div>
+    <div class="footer">
+        © 2025/2026 University Portal
+    </div>
 
 </body>
 
