@@ -1,18 +1,16 @@
 <?php
-// dashboard.php - Merged dashboard for all roles (Simplified for beginners)
+// dashboard.php - Merged dashboard for all type_of_accounts
 session_start();
 
-// If the user is not logged in, send them to the login page
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
     exit;
 }
 
-$user_role = $_SESSION['user_role'];
+$type_of_account= $_SESSION['user_type_of_account'];
 $username = $_SESSION['username'];
 $user_id = $_SESSION['user_id'];
 
-// Connect to the database
 try {
     $db = new PDO('mysql:host=localhost;dbname=gestion_scolarite;charset=utf8mb4', 'root', '');
     $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
@@ -20,212 +18,188 @@ try {
     die("Database connection failed.");
 }
 
-$status_message = '';
-
-// Get the active tab, default to 'students'
-$active_tab = 'students';
-if (isset($_GET['tab'])) {
-    $active_tab = $_GET['tab'];
+// Helper: compute weighted average for a student
+function getStudentAverage(PDO $db, int $student_id): ?float {
+    $student = $db->prepare("SELECT SUM(n.note * m.coefficient) / SUM(m.coefficient) as avg FROM notes n JOIN modules m ON n.id_module = m.id WHERE n.id_etudiant = ?");
+    $student->execute([$student_id]);
+    $val = $student->fetchColumn();
+    return ($val !== false && $val !== null) ? (float)$val : null;
 }
 
+$message = '';
+$active_tab = $_GET['tab'] ?? 'students';
 
-// Handle Admin Form Submissions (POST requests)
+// Admin POST actions
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $type_of_account === 'Admin') {
 
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && $user_role == 'Admin') {
-
-    // Action: Edit an existing student
-    if (isset($_POST['action']) && $_POST['action'] == 'edit_student') {
-        $student_id = $_POST['student_id'];
-        $last_name = trim($_POST['last_name']);
-        $first_name = trim($_POST['first_name']);
+    // Edit student
+    if (isset($_POST['action']) && $_POST['action'] === 'edit_student') {
+        $student_id = (int) $_POST['studentid'];
+        $nom = trim($_POST['nom']);
+        $prenom = trim($_POST['prenom']);
         $email = trim($_POST['email']);
         $date_of_birth = $_POST['date_of_birth'];
-        $study_level = $_POST['study_level'];
-
-        if ($last_name != '' && $first_name != '' && $email != '') {
-            $update_student_query = $db->prepare('UPDATE students SET last_name=?, first_name=?, email=?, date_of_birth=?, study_level=? WHERE id=?');
-            $update_student_query->execute([$last_name, $first_name, $email, $date_of_birth, $study_level, $student_id]);
-            $status_message = "Student updated successfully.";
+        $niveau = $_POST['niveau'];
+        if ($nom && $prenom && $email) {
+            $db->prepare('UPDATE etu// dashboard.php - Merged dashboard for all type_of_accountsdiants SET nom=?, prenom=?, email=?, date_naissance=?, niveau=? WHERE id=?')
+                ->execute([$nom, $prenom, $email, $date_of_birth, $niveau, $student_id]);
+            $message = "Student updated.";
         }
         $active_tab = 'students';
     }
 
-    // Action: Add a new module
-    if (isset($_POST['action']) && $_POST['action'] == 'add_module') {
-        $module_code = trim($_POST['module_code']);
-        $module_name = trim($_POST['module_name']);
-        $coefficient = $_POST['coefficient'];
-        $teacher_id = $_POST['teacher_id'];
-
-        if ($module_code != '' && $module_name != '' && $coefficient != '' && $teacher_id != '') {
-            $insert_module_query = $db->prepare('INSERT INTO modules (module_code, module_name, coefficient, teacher_id) VALUES (?,?,?,?)');
-            $insert_module_query->execute([$module_code, $module_name, $coefficient, $teacher_id]);
-            $status_message = "Module added successfully.";
+    // Add module
+    if (isset($_POST['action']) && $_POST['action'] === 'add_module') {
+        $code = trim($_POST['code_module']);
+        $intitule = trim($_POST['intitule']);
+        $coeff = (int) $_POST['coefficient'];
+        $teacher_id_value = (int) $_POST['id_enseignant'];
+        if ($code && $intitule && $coeff && $teacher_id_value) {
+            $db->prepare('INSERT INTO modules (code_module, intitule, coefficient, id_enseignant) VALUES (?,?,?,?)')
+                ->execute([$code, $intitule, $coeff, $teacher_id_value]);
+            $message = "Module added.";
         }
         $active_tab = 'modules';
     }
 
-    // Action: Edit an existing module
-    if (isset($_POST['action']) && $_POST['action'] == 'edit_module') {
-        $module_id = $_POST['module_id'];
-        $module_name = trim($_POST['module_name']);
-        $coefficient = $_POST['coefficient'];
-        $teacher_id = $_POST['teacher_id'];
-
-        if ($module_name != '' && $coefficient != '' && $teacher_id != '') {
-            $update_module_query = $db->prepare('UPDATE modules SET module_name=?, coefficient=?, teacher_id=? WHERE id=?');
-            $update_module_query->execute([$module_name, $coefficient, $teacher_id, $module_id]);
-            $status_message = "Module updated successfully.";
+    // Edit module
+    if (isset($_POST['action']) && $_POST['action'] === 'edit_module') {
+        $module_id = (int) $_POST['mid'];
+        $intitule = trim($_POST['intitule']);
+        $coeff = (int) $_POST['coefficient'];
+        $teacher_id_value = (int) $_POST['id_enseignant'];
+        if ($intitule && $coeff && $teacher_id_value) {
+            $db->prepare('UPDATE modules SET intitule=?, coefficient=?, id_enseignant=? WHERE id=?')
+                ->execute([$intitule, $coeff, $teacher_id_value, $module_id]);
+            $message = "Module updated.";
         }
         $active_tab = 'modules';
     }
 
-    // Action: Edit an existing teacher
-    if (isset($_POST['action']) && $_POST['action'] == 'edit_teacher') {
-        $teacher_id = $_POST['teacher_id'];
-        $last_name = trim($_POST['last_name']);
-        $first_name = trim($_POST['first_name']);
-        $email = trim($_POST['email']);
-        $specialty = trim($_POST['specialty']);
-
-        if ($last_name != '' && $first_name != '' && $email != '' && $specialty != '') {
-            $update_teacher_query = $db->prepare('UPDATE teachers SET last_name=?, first_name=?, email=?, specialty=? WHERE id=?');
-            $update_teacher_query->execute([$last_name, $first_name, $email, $specialty, $teacher_id]);
-            $status_message = "Teacher updated successfully.";
+    // Add teacher
+    if (isset($_POST['action']) && $_POST['action'] === 'add_teacher') {
+        $nom = trim($_POST['nom'] ?? '');
+        $prenom = trim($_POST['prenom'] ?? '');
+        $email = trim($_POST['email'] ?? '');
+        $specialite = trim($_POST['specialite'] ?? '');
+        if ($nom && $prenom && $email && $specialite) {
+            $check_existing = $db->prepare('SELECT COUNT(*) FROM enseignants WHERE email = ?');
+            $check_existing->execute([$email]);
+            if ($check_existing->fetchColumn() > 0) {
+                $message = "A teacher with this email already exists.";
+            } else {
+                $db->prepare('INSERT INTO enseignants (nom, prenom, email, specialite) VALUES (?,?,?,?)')
+                    ->execute([$nom, $prenom, $email, $specialite]);
+                $teacher_id_value = $db->lastInsertId();
+                $hashed_password = password_hash('prof123', PASSWORD_DEFAULT);
+                $db->prepare("INSERT INTO utilisateurs (username, password, type_of_account, id_ref) VALUES (?,?,'Enseignant',?)")
+                    ->execute([$email, $hashed_password, $teacher_id_value]);
+                $message = "Teacher added. Login: $email / Password: prof123";
+            }
+        } else {
+            $message = "Please fill in all fields";
         }
         $active_tab = 'teachers';
     }
 
-    // Action: Save grades (Admin)
-    if (isset($_POST['action']) && $_POST['action'] == 'admin_save_grades') {
-        $module_id = $_POST['module_id'];
+    // Edit teacher
+    if (isset($_POST['action']) && $_POST['action'] === 'edit_teacher') {
+        $teacher_id = (int)$_POST['tid'];
+        $nom = trim($_POST['nom'] ?? '');
+        $prenom = trim($_POST['prenom'] ?? '');
+        $email = trim($_POST['email'] ?? '');
+        $specialite = trim($_POST['specialite'] ?? '');
+        if ($nom && $prenom && $email && $specialite) {
+            $db->prepare('UPDATE enseignants SET nom=?, prenom=?, email=?, specialite=? WHERE id=?')
+                ->execute([$nom, $prenom, $email, $specialite, $teacher_id]);
+            $message = "Teacher updated.";
+        }
+        $active_tab = 'teachers';
+    }
 
-        if (isset($_POST['grades'])) {
-            $submitted_grades = $_POST['grades'];
-
-            foreach ($submitted_grades as $student_id => $grade_value) {
-                if ($grade_value != '') {
-                    // Check if a grade already exists for this student and module
-                    $check_grade_query = $db->prepare('SELECT id FROM grades WHERE student_id=? AND module_id=?');
-                    $check_grade_query->execute([$student_id, $module_id]);
-                    $existing_grade = $check_grade_query->fetch();
-
-                    if ($existing_grade != false) {
-                        // Update existing grade
-                        $update_grade_query = $db->prepare('UPDATE grades SET grade_value=? WHERE student_id=? AND module_id=?');
-                        $update_grade_query->execute([$grade_value, $student_id, $module_id]);
+    // Save grades (admin)
+    if (isset($_POST['action']) && $_POST['action'] === 'admin_save_grades') {
+        $module_id = (int) $_POST['module_id'];
+        if (isset($_POST['notes']) && is_array($_POST['notes'])) {
+            foreach ($_POST['notes'] as $id_etudiant => $valeur) {
+                if ($valeur !== '') {
+                    $stmt = $db->prepare('SELECT id FROM notes WHERE id_etudiant=? AND id_module=?');
+                    $stmt->execute([$id_etudiant, $module_id]);
+                    if ($stmt->fetch()) {
+                        $db->prepare('UPDATE notes SET note=? WHERE id_etudiant=? AND id_module=?')
+                            ->execute([$valeur, $id_etudiant, $module_id]);
                     } else {
-                        // Insert new grade
-                        $insert_grade_query = $db->prepare('INSERT INTO grades (student_id, module_id, grade_value) VALUES (?,?,?)');
-                        $insert_grade_query->execute([$student_id, $module_id, $grade_value]);
+                        $db->prepare('INSERT INTO notes (id_etudiant, id_module, note) VALUES (?,?,?)')
+                            ->execute([$id_etudiant, $module_id, $valeur]);
                     }
                 }
             }
-            $status_message = "Grades saved successfully.";
+            $message = "Grades saved.";
         }
         $active_tab = 'grades';
     }
 }
 
-
-// Handle Teacher Form Submissions (POST requests)
-
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && $user_role == 'Teacher') {
-    if (isset($_POST['action']) && $_POST['action'] == 'save_grades') {
-        $module_id = $_POST['module_id'];
-
-        if (isset($_POST['grades'])) {
-            $submitted_grades = $_POST['grades'];
-
-            foreach ($submitted_grades as $student_id => $grade_value) {
-                if ($grade_value != '') {
-                    // Check if a grade already exists
-                    $check_grade_query = $db->prepare('SELECT id FROM grades WHERE student_id=? AND module_id=?');
-                    $check_grade_query->execute([$student_id, $module_id]);
-                    $existing_grade = $check_grade_query->fetch();
-
-                    if ($existing_grade != false) {
-                        // Update existing grade
-                        $update_grade_query = $db->prepare('UPDATE grades SET grade_value=? WHERE student_id=? AND module_id=?');
-                        $update_grade_query->execute([$grade_value, $student_id, $module_id]);
+// Teacher POST
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $type_of_account === 'Enseignant') {
+    if (isset($_POST['action']) && $_POST['action'] === 'save_grades') {
+        $module_id = (int) $_POST['module_id'];
+        if (isset($_POST['notes']) && is_array($_POST['notes'])) {
+            foreach ($_POST['notes'] as $id_etudiant => $valeur) {
+                if ($valeur !== '') {
+                    $stmt = $db->prepare('SELECT id FROM notes WHERE id_etudiant=? AND id_module=?');
+                    $stmt->execute([$id_etudiant, $module_id]);
+                    if ($stmt->fetch()) {
+                        $db->prepare('UPDATE notes SET note=? WHERE id_etudiant=? AND id_module=?')
+                            ->execute([$valeur, $id_etudiant, $module_id]);
                     } else {
-                        // Insert new grade
-                        $insert_grade_query = $db->prepare('INSERT INTO grades (student_id, module_id, grade_value) VALUES (?,?,?)');
-                        $insert_grade_query->execute([$student_id, $module_id, $grade_value]);
+                        $db->prepare('INSERT INTO notes (id_etudiant, id_module, note) VALUES (?,?,?)')
+                            ->execute([$id_etudiant, $module_id, $valeur]);
                     }
                 }
             }
-            $status_message = "Grades saved successfully.";
+            $message = "Grades saved.";
         }
     }
 }
 
-
-// Handle Admin Delete Actions (GET requests)
-
-if ($user_role == 'Admin' && isset($_GET['delete_student'])) {
-    $student_id_to_delete = $_GET['delete_student'];
-
-    // First delete the user account linked to this student
-    $delete_user_query = $db->prepare('DELETE FROM users WHERE reference_id=? AND role="Student"');
-    $delete_user_query->execute([$student_id_to_delete]);
-
-    // Then delete the student
-    $delete_student_query = $db->prepare('DELETE FROM students WHERE id=?');
-    $delete_student_query->execute([$student_id_to_delete]);
-
-    $status_message = "Student deleted successfully.";
+// Admin GET actions
+if ($type_of_account === 'Admin' && isset($_GET['delete_student'])) {
+    $id = (int) $_GET['delete_student'];
+    $db->prepare('DELETE FROM utilisateurs WHERE id_ref=? AND type_of_account="Etudiant"')->execute([$id]);
+    $db->prepare('DELETE FROM etudiants WHERE id=?')->execute([$id]);
+    $message = "Student deleted.";
     $active_tab = 'students';
 }
 
-if ($user_role == 'Admin' && isset($_GET['delete_module'])) {
-    $module_id_to_delete = $_GET['delete_module'];
-
-    $delete_module_query = $db->prepare('DELETE FROM modules WHERE id=?');
-    $delete_module_query->execute([$module_id_to_delete]);
-
-    $status_message = "Module deleted successfully.";
+if ($type_of_account === 'Admin' && isset($_GET['delete_module'])) {
+    $id = (int) $_GET['delete_module'];
+    $db->prepare('DELETE FROM modules WHERE id=?')->execute([$id]);
+    $message = "Module deleted.";
     $active_tab = 'modules';
 }
 
-if ($user_role == 'Admin' && isset($_GET['delete_teacher'])) {
-    $teacher_id_to_delete = $_GET['delete_teacher'];
-
-    // First delete the user account linked to this teacher
-    $delete_user_query = $db->prepare('DELETE FROM users WHERE reference_id=? AND role="Teacher"');
-    $delete_user_query->execute([$teacher_id_to_delete]);
-
-    // Then delete the teacher
-    $delete_teacher_query = $db->prepare('DELETE FROM teachers WHERE id=?');
-    $delete_teacher_query->execute([$teacher_id_to_delete]);
-
-    $status_message = "Teacher deleted successfully.";
+if ($type_of_account === 'Admin' && isset($_GET['delete_teacher'])) {
+    $id = (int) $_GET['delete_teacher'];
+    $db->prepare('DELETE FROM utilisateurs WHERE id_ref=? AND type_of_account="Enseignant"')->execute([$id]);
+    $db->prepare('DELETE FROM enseignants WHERE id=?')->execute([$id]);
+    $message = "Teacher deleted.";
     $active_tab = 'teachers';
 }
 
-
-// Get Statistics for Admin Dashboard
-
-$total_students = 0;
-$total_teachers = 0;
-$total_modules = 0;
-
+// Stats
+$stats = ['etudiants' => 0, 'enseignants' => 0, 'modules' => 0];
 try {
-    $total_students = $db->query("SELECT COUNT(*) FROM students")->fetchColumn();
-    $total_teachers = $db->query("SELECT COUNT(*) FROM teachers")->fetchColumn();
-    $total_modules = $db->query("SELECT COUNT(*) FROM modules")->fetchColumn();
+    $stats['etudiants'] = $db->query("SELECT COUNT(*) FROM etudiants")->fetchColumn();
+    $stats['enseignants'] = $db->query("SELECT COUNT(*) FROM enseignants")->fetchColumn();
+    $stats['modules'] = $db->query("SELECT COUNT(*) FROM modules")->fetchColumn();
 } catch (Exception $e) {
-    // Keep them at 0 if there's an error
 }
 
-// Get the search query if it exists
-$search_query = '';
-if (isset($_GET['search'])) {
-    $search_query = trim($_GET['search']);
-}
+$search = trim($_GET['search'] ?? '');
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 
 <head>
     <meta charset="UTF-8">
@@ -242,582 +216,449 @@ if (isset($_GET['search'])) {
             <h1>USTHB</h1>
         </div>
         <div class="header-links">
-            <a href="index.php?logout=1">Logout</a>
+            <a href="home.php?logout=1">Logout</a>
         </div>
     </div>
 
     <div class="container">
         <div class="user-badge">
             Logged in as: <strong><?php echo htmlspecialchars($username); ?></strong>
-            (<?php echo htmlspecialchars($user_role); ?>)
+            (<?php echo htmlspecialchars($type_of_account); ?>)
         </div>
 
-        <?php if ($status_message != '') { ?>
-            <div class="alert"><?php echo htmlspecialchars($status_message); ?></div>
-        <?php } ?>
+        <?php if ($message): ?>
+            <div class="alert"><?php echo htmlspecialchars($message); ?></div>
+        <?php endif; ?>
 
-        <!-- ======================== ADMIN DASHBOARD ======================== -->
-        <?php if ($user_role == 'Admin') { ?>
+        <!-- ======================== ADMIN ======================== -->
+        <?php if ($type_of_account === 'Admin'): ?>
             <h2>Admin Dashboard</h2>
 
             <!-- Stats -->
             <div class="stats-container">
                 <div class="stat-card students">
-                    <span class="stat-number"><?php echo $total_students; ?></span>
+
+                    <span class="stat-number"><?php echo $stats['etudiants']; ?></span>
                     <span class="stat-label">Students</span>
                 </div>
                 <div class="stat-card teachers">
-                    <span class="stat-number"><?php echo $total_teachers; ?></span>
+
+                    <span class="stat-number"><?php echo $stats['enseignants']; ?></span>
                     <span class="stat-label">Teachers</span>
                 </div>
                 <div class="stat-card modules">
-                    <span class="stat-number"><?php echo $total_modules; ?></span>
+
+                    <span class="stat-number"><?php echo $stats['modules']; ?></span>
                     <span class="stat-label">Modules</span>
                 </div>
             </div>
 
-            <!-- Tabs Navigation -->
+            <!-- Tabs -->
             <div class="tab-nav">
                 <a href="dashboard.php?tab=students"
-                    class="<?php if ($active_tab == 'students') {
-                        echo 'active';
-                    } ?>">Students</a>
-                <a href="dashboard.php?tab=modules"
-                    class="<?php if ($active_tab == 'modules') {
-                        echo 'active';
-                    } ?>">Modules</a>
+                    class="<?php echo $active_tab === 'students' ? 'active' : ''; ?>">Students</a>
+                <a href="dashboard.php?tab=modules" class="<?php echo $active_tab === 'modules' ? 'active' : ''; ?>">Modules</a>
                 <a href="dashboard.php?tab=teachers"
-                    class="<?php if ($active_tab == 'teachers') {
-                        echo 'active';
-                    } ?>">Teachers</a>
-                <a href="dashboard.php?tab=grades"
-                    class="<?php if ($active_tab == 'grades') {
-                        echo 'active';
-                    } ?>">Grades</a>
+                    class="<?php echo $active_tab === 'teachers' ? 'active' : ''; ?>">Teachers</a>
+                <a href="dashboard.php?tab=grades" class="<?php echo $active_tab === 'grades' ? 'active' : ''; ?>">Grades</a>
             </div>
 
-            <!-- STUDENTS TAB -->
-            <?php if ($active_tab == 'students') { ?>
+            <!-- ===== STUDENTS TAB ===== -->
+            <?php if ($active_tab === 'students'): ?>
                 <div class="section-header">
                     <h3>Student List</h3>
-                    <a href="create_student.php" class="btn">+ Add Student</a>
+                    <a href="create_student.php" class="button">+ Add Student</a>
                 </div>
 
                 <form method="GET" action="dashboard.php" class="search-bar">
                     <input type="hidden" name="tab" value="students">
-                    <input type="search" name="search" placeholder="Search by name or number..."
-                        value="<?php echo htmlspecialchars($search_query); ?>">
-                    <button type="submit" class="btn">Search</button>
-                    <?php if ($search_query != '') { ?>
-                        <a href="dashboard.php?tab=students" class="btn btn-secondary">Clear</a>
-                    <?php } ?>
+                    <input type="search" name="search" placeholder="Search by name or matricule..."
+                        value="<?php echo htmlspecialchars($search); ?>">
+                    <button type="submit" class="button">Search</button>
+                    <?php if ($search): ?><a href="dashboard.php?tab=students"
+                            class="button button-secondary">Clear</a><?php endif; ?>
                 </form>
 
                 <?php
-                // Fetch students from the database
-                $sql = "SELECT * FROM students";
-                if ($search_query != '') {
-                    $sql = $sql . " WHERE last_name LIKE :search_term OR first_name LIKE :search_term OR student_number LIKE :search_term";
+                $sql = "SELECT e.*, u.username FROM etudiants e LEFT JOIN utilisateurs u ON u.id_ref=e.id AND u.type_of_account='Etudiant'";
+                if ($search) {
+                    $sql .= " WHERE e.nom LIKE :s OR e.prenom LIKE :s OR e.matricule LIKE :s";
                 }
-                $sql = $sql . " ORDER BY id DESC";
-
-                $get_students_query = $db->prepare($sql);
-
-                if ($search_query != '') {
-                    $get_students_query->execute([':search_term' => "%$search_query%"]);
+                $sql .= " ORDER BY e.id DESC";
+                $stmt = $db->prepare($sql);
+                if ($search) {
+                    $stmt->execute([':s' => "%$search%"]);
                 } else {
-                    $get_students_query->execute();
+                    $stmt->execute();
                 }
-
-                $student_list = $get_students_query->fetchAll(PDO::FETCH_ASSOC);
-
-                // Check if a student is being edited
-                $student_id_to_edit = 0;
-                if (isset($_GET['edit_student'])) {
-                    $student_id_to_edit = $_GET['edit_student'];
-                }
+                $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 ?>
+
+                <?php $edit_id = isset($_GET['edit_student']) ? (int) $_GET['edit_student'] : 0; ?>
 
                 <table>
                     <tr>
-                        <th>Student Number</th>
+                        <th>Matricule</th>
                         <th>Last Name</th>
                         <th>First Name</th>
                         <th>Email</th>
                         <th>Level</th>
+                        <th>Moyenne</th>
+                        <th>Statut</th>
                         <th>Actions</th>
                     </tr>
-                    <?php foreach ($student_list as $student) { ?>
-                        <?php if ($student_id_to_edit == $student['id']) { ?>
-                            <!-- Edit Student Form Row -->
+                    <?php foreach ($students as $student): ?>
+                        <?php if ($edit_id === $student['id']): ?>
                             <tr>
-                                <td colspan="6">
-                                    <form method="POST" action="dashboard.php?tab=students" class="edit-form-inline">
+                                <td colspan="8">
+                                    <form method="POST" action="dashboard.php?tab=students" class="inline-edit-form">
                                         <input type="hidden" name="action" value="edit_student">
-                                        <input type="hidden" name="student_id" value="<?php echo $student['id']; ?>">
-
-                                        <input type="text" name="last_name"
-                                            value="<?php echo htmlspecialchars($student['last_name']); ?>" placeholder="Last Name"
-                                            required>
-                                        <input type="text" name="first_name"
-                                            value="<?php echo htmlspecialchars($student['first_name']); ?>" placeholder="First Name"
-                                            required>
+                                        <input type="hidden" name="eid" value="<?php echo $student['id']; ?>">
+                                        <input type="text" name="nom" value="<?php echo htmlspecialchars($student['nom']); ?>"
+                                            placeholder="Last Name" required>
+                                        <input type="text" name="prenom" value="<?php echo htmlspecialchars($student['prenom']); ?>"
+                                            placeholder="First Name" required>
                                         <input type="email" name="email" value="<?php echo htmlspecialchars($student['email']); ?>"
                                             placeholder="Email" required>
-                                        <input type="date" name="date_of_birth" value="<?php echo $student['date_of_birth']; ?>"
-                                            required>
-
-                                        <select name="study_level">
-                                            <option value="L1 Computer Science" <?php if ($student['study_level'] == 'L1 Computer Science')
-                                                echo 'selected'; ?>>L1 Computer Science</option>
-                                            <option value="L2 Computer Science" <?php if ($student['study_level'] == 'L2 Computer Science')
-                                                echo 'selected'; ?>>L2 Computer Science</option>
-                                            <option value="L3 Computer Science" <?php if ($student['study_level'] == 'L3 Computer Science')
-                                                echo 'selected'; ?>>L3 Computer Science</option>
+                                        <input type="date" name="date_naissance" value="<?php echo $student['date_naissance']; ?>" required>
+                                        <select name="niveau">
+                                            <?php foreach (['L1 Informatique', 'L2 Informatique', 'L3 Informatique'] as $n): ?>
+                                                <option value="<?php echo $n; ?>" <?php echo $student['niveau'] === $n ? 'selected' : ''; ?>>
+                                                    <?php echo $n; ?></option>
+                                            <?php endforeach; ?>
                                         </select>
-
-                                        <button type="submit" class="btn btn-success btn-sm">Save</button>
-                                        <a href="dashboard.php?tab=students" class="btn btn-secondary btn-sm">Cancel</a>
+                                        <button type="submit" class="button button-success button-sm">Save</button>
+                                        <a href="dashboard.php?tab=students" class="button button-secondary button-sm">Cancel</a>
                                     </form>
                                 </td>
                             </tr>
-                        <?php } else { ?>
-                            <!-- Display Student Row -->
+                        <?php else: ?>
                             <tr>
-                                <td><?php echo htmlspecialchars($student['student_number']); ?></td>
-                                <td><?php echo htmlspecialchars($student['last_name']); ?></td>
-                                <td><?php echo htmlspecialchars($student['first_name']); ?></td>
+                                <?php
+                                $average_grade = getStudentAverage($db, $student['id']);
+                                $student_status = ($average_grade !== null) ? ($average_grade >= 10 ? 'Admis' : 'Ajourné') : '—';
+                                $status_color = ($average_grade !== null && $average_grade >= 10) ? '#3B6D11' : '#A32D2D';
+                                $status_background = ($average_grade !== null && $average_grade >= 10) ? '#EAF3DE' : '#FCEBEB';
+                                ?>
+                                <td><?php echo htmlspecialchars($student['matricule']); ?></td>
+                                <td><?php echo htmlspecialchars($student['nom']); ?></td>
+                                <td><?php echo htmlspecialchars($student['prenom']); ?></td>
                                 <td><?php echo htmlspecialchars($student['email']); ?></td>
-                                <td><?php echo htmlspecialchars($student['study_level']); ?></td>
+                                <td><?php echo htmlspecialchars($student['niveau']); ?></td>
+                                <td><?php echo ($average_grade !== null) ? number_format($average_grade, 2) . ' / 20' : 'N/A'; ?></td>
+                                <td><span style="background:<?php echo $status_background; ?>;color:<?php echo $status_color; ?>;padding:3px 10px;border-radius:6px;font-size:13px;font-weight:500;"><?php echo $student_status; ?></span></td>
                                 <td>
-                                    <a href="dashboard.php?tab=students&edit_student=<?php echo $student['id']; ?>"
-                                        class="btn btn-warning btn-sm">Edit</a>
-                                    <a href="dashboard.php?tab=students&delete_student=<?php echo $student['id']; ?>"
-                                        class="btn btn-danger btn-sm"
-                                        onclick="return confirm('Are you sure you want to delete this student?');">Delete</a>
+                                    <div style="display: flex; gap: 8px; flex-wrap: nowrap;">
+                                        <a href="dashboard.php?tab=students&edit_student=<?php echo $student['id']; ?>"
+                                            class="button button-warning button-sm">Edit</a>
+                                        <a href="dashboard.php?tab=students&delete_student=<?php echo $student['id']; ?>"
+                                            class="button button-danger button-sm" onclick="return confirm('Delete this student?');">Delete</a>
+                                    </div>
                                 </td>
                             </tr>
-                        <?php } ?>
-                    <?php } ?>
+                        <?php endif; ?>
+                    <?php endforeach; ?>
                 </table>
 
-                <!-- MODULES TAB -->
-            <?php } elseif ($active_tab == 'modules') { ?>
+                <!-- ===== MODULES TAB ===== -->
+            <?php elseif ($active_tab === 'modules'): ?>
                 <h3 style="margin-bottom:20px;">Manage Modules</h3>
 
                 <?php
-                // Get all teachers for the dropdown menu
-                $all_teachers = $db->query("SELECT id, last_name, first_name FROM teachers ORDER BY last_name")->fetchAll(PDO::FETCH_ASSOC);
-
-                // Get all modules with their teacher's name
-                $all_modules = $db->query("SELECT modules.*, teachers.last_name as teacher_last_name, teachers.first_name as teacher_first_name FROM modules JOIN teachers ON modules.teacher_id = teachers.id ORDER BY modules.id")->fetchAll(PDO::FETCH_ASSOC);
-
-                // Check if a module is being edited
-                $module_id_to_edit = 0;
-                if (isset($_GET['edit_module'])) {
-                    $module_id_to_edit = $_GET['edit_module'];
-                }
+                $teachers_all = $db->query("SELECT id, nom, prenom FROM enseignants ORDER BY nom")->fetchAll(PDO::FETCH_ASSOC);
+                $modules_all = $db->query("SELECT m.*, e.nom as ens_nom, e.prenom as ens_prenom FROM modules m JOIN enseignants e ON m.id_enseignant=e.id ORDER BY m.id")->fetchAll(PDO::FETCH_ASSOC);
+                $edit_mod = isset($_GET['edit_module']) ? (int) $_GET['edit_module'] : 0;
                 ?>
 
-                <!-- Add New Module Form -->
+                <!-- Add module form -->
                 <div class="card">
                     <h3>Add New Module</h3>
-                    <form method="POST" action="dashboard.php?tab=modules" class="edit-form-inline">
+                    <form method="POST" action="dashboard.php?tab=modules" class="inline-edit-form">
                         <input type="hidden" name="action" value="add_module">
-
-                        <input type="text" name="module_code" placeholder="Code (e.g. PROGWEB)" required>
-                        <input type="text" name="module_name" placeholder="Module Name" required>
+                        <input type="text" name="code_module" placeholder="Code (e.g. PROGWEB)" required>
+                        <input type="text" name="intitule" placeholder="Module Name" required>
                         <input type="number" name="coefficient" placeholder="Coeff" min="1" max="10" value="2" required
                             style="width:90px;">
-
-                        <select name="teacher_id" required>
-                            <option value="">-- Select Teacher --</option>
-                            <?php foreach ($all_teachers as $teacher) { ?>
-                                <option value="<?php echo $teacher['id']; ?>">
-                                    <?php echo htmlspecialchars($teacher['last_name'] . ' ' . $teacher['first_name']); ?>
+                        <select name="id_enseignant" required>
+                            <option value="">-- Teacher --</option>
+                            <?php foreach ($teachers_all as $teacher): ?>
+                                <option value="<?php echo $teacher['id']; ?>"><?php echo htmlspecialchars($teacher['nom'] . ' ' . $teacher['prenom']); ?>
                                 </option>
-                            <?php } ?>
+                            <?php endforeach; ?>
                         </select>
-
-                        <button type="submit" class="btn btn-sm">Add Module</button>
+                        <button type="submit" class="button button-sm">Add</button>
                     </form>
                 </div>
 
                 <table>
                     <tr>
                         <th>Code</th>
-                        <th>Module Name</th>
-                        <th>Coefficient</th>
+                        <th>Module</th>
+                        <th>Coeff</th>
                         <th>Teacher</th>
                         <th>Actions</th>
                     </tr>
-                    <?php foreach ($all_modules as $module) { ?>
-                        <?php if ($module_id_to_edit == $module['id']) { ?>
-                            <!-- Edit Module Form Row -->
+                    <?php foreach ($modules_all as $module): ?>
+                        <?php if ($edit_mod === (int) $module['id']): ?>
                             <tr>
                                 <td colspan="5">
-                                    <form method="POST" action="dashboard.php?tab=modules" class="edit-form-inline">
+                                    <form method="POST" action="dashboard.php?tab=modules" class="inline-edit-form">
                                         <input type="hidden" name="action" value="edit_module">
-                                        <input type="hidden" name="module_id" value="<?php echo $module['id']; ?>">
-
-                                        <input type="text" name="module_name"
-                                            value="<?php echo htmlspecialchars($module['module_name']); ?>" required>
+                                        <input type="hidden" name="mid" value="<?php echo $module['id']; ?>">
+                                        <input type="text" name="intitule" value="<?php echo htmlspecialchars($module['intitule']); ?>"
+                                            required>
                                         <input type="number" name="coefficient" value="<?php echo $module['coefficient']; ?>" min="1"
                                             max="10" required style="width:90px;">
-
-                                        <select name="teacher_id" required>
-                                            <?php foreach ($all_teachers as $teacher) { ?>
-                                                <option value="<?php echo $teacher['id']; ?>" <?php if ($module['teacher_id'] == $teacher['id']) {
-                                                       echo 'selected';
-                                                   } ?>>
-                                                    <?php echo htmlspecialchars($teacher['last_name'] . ' ' . $teacher['first_name']); ?>
-                                                </option>
-                                            <?php } ?>
+                                        <select name="id_enseignant" required>
+                                            <?php foreach ($teachers_all as $teacher): ?>
+                                                <option value="<?php echo $teacher['id']; ?>" <?php echo $module['id_enseignant'] == $teacher['id'] ? 'selected' : ''; ?>>
+                                                    <?php echo htmlspecialchars($teacher['nom'] . ' ' . $teacher['prenom']); ?></option>
+                                            <?php endforeach; ?>
                                         </select>
-
-                                        <button type="submit" class="btn btn-success btn-sm">Save</button>
-                                        <a href="dashboard.php?tab=modules" class="btn btn-secondary btn-sm">Cancel</a>
+                                        <button type="submit" class="button button-success button-sm">Save</button>
+                                        <a href="dashboard.php?tab=modules" class="button button-secondary button-sm">Cancel</a>
                                     </form>
                                 </td>
                             </tr>
-                        <?php } else { ?>
-                            <!-- Display Module Row -->
+                        <?php else: ?>
                             <tr>
-                                <td><?php echo htmlspecialchars($module['module_code']); ?></td>
-                                <td><?php echo htmlspecialchars($module['module_name']); ?></td>
+                                <td><?php echo htmlspecialchars($module['code_module']); ?></td>
+                                <td><?php echo htmlspecialchars($module['intitule']); ?></td>
                                 <td><?php echo $module['coefficient']; ?></td>
-                                <td><?php echo htmlspecialchars($module['teacher_last_name'] . ' ' . $module['teacher_first_name']); ?>
-                                </td>
+                                <td><?php echo htmlspecialchars($module['ens_nom'] . ' ' . $module['ens_prenom']); ?></td>
                                 <td>
-                                    <a href="dashboard.php?tab=modules&edit_module=<?php echo $module['id']; ?>"
-                                        class="btn btn-warning btn-sm">Edit</a>
-                                    <a href="dashboard.php?tab=modules&delete_module=<?php echo $module['id']; ?>"
-                                        class="btn btn-danger btn-sm"
-                                        onclick="return confirm('Are you sure you want to delete this module?');">Delete</a>
+                                    <div style="display: flex; gap: 8px; flex-wrap: nowrap;">
+                                        <a href="dashboard.php?tab=modules&edit_module=<?php echo $module['id']; ?>"
+                                            class="button button-warning button-sm">Edit</a>
+                                        <a href="dashboard.php?tab=modules&delete_module=<?php echo $module['id']; ?>"
+                                            class="button button-danger button-sm" onclick="return confirm('Delete this module?');">Delete</a>
+                                    </div>
                                 </td>
                             </tr>
-                        <?php } ?>
-                    <?php } ?>
+                        <?php endif; ?>
+                    <?php endforeach; ?>
                 </table>
 
-                <!--  TEACHERS TAB  -->
-            <?php } elseif ($active_tab == 'teachers') { ?>
-                <div class="section-header">
-                    <h3>Teacher List</h3>
-                    <a href="create_teacher.php" class="btn">+ Add Teacher</a>
-                </div>
-                
+                <!-- ===== TEACHERS TAB ===== -->
+            <?php elseif ($active_tab === 'teachers'): ?>
+                <h3 style="margin-bottom:20px;">Manage Teachers</h3>
                 <?php
-                // Get all teachers
-                $all_teachers = $db->query("SELECT * FROM teachers ORDER BY id DESC")->fetchAll(PDO::FETCH_ASSOC);
-                
-                // Check if a teacher is being edited
-                $teacher_id_to_edit = 0;
-                if (isset($_GET['edit_teacher'])) {
-                    $teacher_id_to_edit = $_GET['edit_teacher'];
-                }
+                $teachers_list = $db->query("SELECT * FROM enseignants ORDER BY nom")->fetchAll(PDO::FETCH_ASSOC);
+                $edit_tid = isset($_GET['edit_teacher']) ? (int)$_GET['edit_teacher'] : 0;
                 ?>
-                
+
+                <!-- Add teacher form -->
+                <div class="card">
+                    <h3>Add New Teacher</h3>
+                    <form method="POST" action="dashboard.php?tab=teachers" class="inline-edit-form">
+                        <input type="hidden" name="action" value="add_teacher">
+                        <input type="text" name="nom" placeholder="Last Name" required>
+                        <input type="text" name="prenom" placeholder="First Name" required>
+                        <input type="email" name="email" placeholder="Email (used as login)" required>
+                        <input type="text" name="specialite" placeholder="Specialty" required>
+                        <button type="submit" class="button button-sm">Add</button>
+                    </form>
+                </div>
+
                 <table>
                     <tr>
                         <th>Last Name</th>
                         <th>First Name</th>
                         <th>Email</th>
                         <th>Specialty</th>
-                        <th>Assigned Modules</th>
+                        <th>Modules</th>
                         <th>Actions</th>
                     </tr>
-                    <?php foreach ($all_teachers as $teacher) { ?>
-                        <?php if ($teacher_id_to_edit == $teacher['id']) { ?>
-                            <!-- Edit Teacher Form Row -->
+                    <?php foreach ($teachers_list as $teacher): ?>
+                        <?php if ($edit_tid === (int)$teacher['id']): ?>
                             <tr>
                                 <td colspan="6">
-                                    <form method="POST" action="dashboard.php?tab=teachers" class="edit-form-inline">
+                                    <form method="POST" action="dashboard.php?tab=teachers" class="inline-edit-form">
                                         <input type="hidden" name="action" value="edit_teacher">
-                                        <input type="hidden" name="teacher_id" value="<?php echo $teacher['id']; ?>">
-                                        
-                                        <input type="text" name="last_name" value="<?php echo htmlspecialchars($teacher['last_name']); ?>" required>
-                                        <input type="text" name="first_name" value="<?php echo htmlspecialchars($teacher['first_name']); ?>" required>
-                                        <input type="email" name="email" value="<?php echo htmlspecialchars($teacher['email']); ?>" required>
-                                        <input type="text" name="specialty" value="<?php echo htmlspecialchars($teacher['specialty']); ?>" required>
-                                        
-                                        <button type="submit" class="btn btn-success btn-sm">Save</button>
-                                        <a href="dashboard.php?tab=teachers" class="btn btn-secondary btn-sm">Cancel</a>
+                                        <input type="hidden" name="tid" value="<?php echo $teacher['id']; ?>">
+                                        <input type="text" name="nom" value="<?php echo htmlspecialchars($teacher['nom']); ?>" placeholder="Last Name" required>
+                                        <input type="text" name="prenom" value="<?php echo htmlspecialchars($teacher['prenom']); ?>" placeholder="First Name" required>
+                                        <input type="email" name="email" value="<?php echo htmlspecialchars($teacher['email']); ?>" placeholder="Email" required>
+                                        <input type="text" name="specialite" value="<?php echo htmlspecialchars($teacher['specialite']); ?>" placeholder="Specialty" required>
+                                        <button type="submit" class="button button-success button-sm">Save</button>
+                                        <a href="dashboard.php?tab=teachers" class="button button-secondary button-sm">Cancel</a>
                                     </form>
                                 </td>
                             </tr>
-                        <?php } else { ?>
-                            <!-- Display Teacher Row -->
+                        <?php else: ?>
                             <tr>
-                                <td><?php echo htmlspecialchars($teacher['last_name']); ?></td>
-                                <td><?php echo htmlspecialchars($teacher['first_name']); ?></td>
+                                <?php
+                                $modules_query = $db->prepare("SELECT intitule FROM modules WHERE id_enseignant=?");
+                                $modules_query->execute([$teacher['id']]);
+                                $teacher_modules_list = $modules_query->fetchAll(PDO::FETCH_COLUMN);
+                                ?>
+                                <td><?php echo htmlspecialchars($teacher['nom']); ?></td>
+                                <td><?php echo htmlspecialchars($teacher['prenom']); ?></td>
                                 <td><?php echo htmlspecialchars($teacher['email']); ?></td>
-                                <td><?php echo htmlspecialchars($teacher['specialty']); ?></td>
+                                <td><?php echo htmlspecialchars($teacher['specialite']); ?></td>
+                                <td><?php echo $teacher_modules_list ? htmlspecialchars(implode(', ', $teacher_modules_list)) : '<em>None</em>'; ?></td>
                                 <td>
-                                    <?php
-                                    // Get modules assigned to this teacher
-                                    $get_teacher_modules_query = $db->prepare("SELECT module_name FROM modules WHERE teacher_id=?");
-                                    $get_teacher_modules_query->execute([$teacher['id']]);
-                                    $teacher_modules = $get_teacher_modules_query->fetchAll(PDO::FETCH_ASSOC);
-                                    
-                                    if (count($teacher_modules) > 0) {
-                                        $module_names = [];
-                                        foreach ($teacher_modules as $teacher_module) {
-                                            $module_names[] = htmlspecialchars($teacher_module['module_name']);
-                                        }
-                                        echo implode(", ", $module_names);
-                                    } else {
-                                        echo "<em>None</em>";
-                                    }
-                                    ?>
-                                </td>
-                                <td>
-                                    <a href="dashboard.php?tab=teachers&edit_teacher=<?php echo $teacher['id']; ?>" class="btn btn-warning btn-sm">Edit</a>
-                                    <a href="dashboard.php?tab=teachers&delete_teacher=<?php echo $teacher['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to delete this teacher?');">Delete</a>
+                                    <div style="display: flex; gap: 8px; flex-wrap: nowrap;">
+                                        <a href="dashboard.php?tab=teachers&edit_teacher=<?php echo $teacher['id']; ?>" class="button button-warning button-sm">Edit</a>
+                                        <a href="dashboard.php?tab=teachers&delete_teacher=<?php echo $teacher['id']; ?>" class="button button-danger button-sm" onclick="return confirm('Delete this teacher and their account?');">Delete</a>
+                                    </div>
                                 </td>
                             </tr>
-                        <?php } ?>
-                    <?php } ?>
+                        <?php endif; ?>
+                    <?php endforeach; ?>
                 </table>
 
-                <!-- ===== GRADES TAB ===== -->
-            <?php } elseif ($active_tab == 'grades') { ?>
+                <!-- GRADES TAB -->
+            <?php elseif ($active_tab === 'grades'): ?>
                 <h3 style="margin-bottom:20px;">Manage Grades</h3>
-
                 <?php
-                // Get all modules
-                $all_modules = $db->query("SELECT * FROM modules ORDER BY id")->fetchAll(PDO::FETCH_ASSOC);
-
-                // Check which module is currently selected
-                $selected_module_id = 0;
-                if (isset($_GET['module'])) {
-                    $selected_module_id = $_GET['module'];
-                } elseif (count($all_modules) > 0) {
-                    $selected_module_id = $all_modules[0]['id'];
-                }
+                $all_modules = $db->query("SELECT m.*, e.nom as ens_nom FROM modules m JOIN enseignants e ON m.id_enseignant=e.id ORDER BY m.id")->fetchAll(PDO::FETCH_ASSOC);
+                $sel_module = $_GET['module'] ?? ($all_modules[0]['id'] ?? 0);
                 ?>
-
-                <!-- Select Module Buttons -->
                 <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;">
-                    <?php foreach ($all_modules as $module) { ?>
-                        <?php
-                        $button_class = 'btn btn-sm';
-                        if ($selected_module_id != $module['id']) {
-                            $button_class = $button_class . ' btn-secondary';
-                        }
-                        ?>
-                        <a href="dashboard.php?tab=grades&module=<?php echo $module['id']; ?>" class="<?php echo $button_class; ?>">
-                            <?php echo htmlspecialchars($module['module_name']); ?>
-                        </a>
-                    <?php } ?>
+                    <?php foreach ($all_modules as $module_item): ?>
+                        <a href="dashboard.php?tab=grades&module=<?php echo $module_item['id']; ?>"
+                            class="button button-sm <?php echo ($sel_module == $module_item['id']) ? '' : 'button-secondary'; ?>"><?php echo htmlspecialchars($module_item['intitule']); ?></a>
+                    <?php endforeach; ?>
                 </div>
 
-                <?php if ($selected_module_id != 0) { ?>
-                    <form method="POST" action="dashboard.php?tab=grades&module=<?php echo $selected_module_id; ?>">
+                <?php if ($sel_module): ?>
+                    <form method="POST" action="dashboard.php?tab=grades&module=<?php echo $sel_module; ?>">
                         <input type="hidden" name="action" value="admin_save_grades">
-                        <input type="hidden" name="module_id" value="<?php echo $selected_module_id; ?>">
-
+                        <input type="hidden" name="module_id" value="<?php echo $sel_module; ?>">
                         <table>
                             <tr>
-                                <th>Student Name</th>
-                                <th>Study Level</th>
+                                <th>Student</th>
+                                <th>Level</th>
                                 <th>Grade (/20)</th>
                             </tr>
                             <?php
-                            // Get all students
-                            $all_students = $db->query("SELECT id, last_name, first_name, study_level FROM students ORDER BY last_name")->fetchAll(PDO::FETCH_ASSOC);
-
-                            foreach ($all_students as $student) {
-                                // Get the grade for this student in the selected module
-                                $get_grade_query = $db->prepare('SELECT grade_value FROM grades WHERE student_id=? AND module_id=?');
-                                $get_grade_query->execute([$student['id'], $selected_module_id]);
-                                $student_grade = $get_grade_query->fetchColumn();
+                            $all_students = $db->query("SELECT id, nom, prenom, niveau FROM etudiants ORDER BY nom")->fetchAll(PDO::FETCH_ASSOC);
+                            foreach ($all_students as $student_item):
+                                $grade_statement = $db->prepare('SELECT note FROM notes WHERE id_etudiant=? AND id_module=?');
+                                $grade_statement->execute([$student_item['id'], $sel_module]);
+                                $grade_value = $grade_statement->fetchColumn();
                                 ?>
                                 <tr>
-                                    <td><?php echo htmlspecialchars($student['last_name'] . ' ' . $student['first_name']); ?></td>
-                                    <td><?php echo htmlspecialchars($student['study_level']); ?></td>
-                                    <td>
-                                        <input type="number" step="0.25" min="0" max="20" name="grades[<?php echo $student['id']; ?>]"
-                                            value="<?php if ($student_grade != false) {
-                                                echo htmlspecialchars($student_grade);
-                                            } ?>"
-                                            style="width:100px;margin-bottom:0;">
-                                    </td>
+                                    <td><?php echo htmlspecialchars($student_item['nom'] . ' ' . $student_item['prenom']); ?></td>
+                                    <td><?php echo htmlspecialchars($student_item['niveau']); ?></td>
+                                    <td><input type="number" step="0.25" min="0" max="20" name="notes[<?php echo $student_item['id']; ?>]"
+                                            value="<?php echo htmlspecialchars($grade_value !== false ? $grade_value : ''); ?>"
+                                            style="width:100px;margin-bottom:0;"></td>
                                 </tr>
-                            <?php } ?>
+                            <?php endforeach; ?>
                         </table>
-
-                        <button type="submit" class="btn">Save Grades</button>
+                        <button type="submit" class="button">Save Grades</button>
                     </form>
-                <?php } ?>
+                <?php endif; ?>
 
-            <?php } ?>
+            <?php endif; ?>
 
-            <!--  TEACHER DASHBOARD  -->
-        <?php } elseif ($user_role == 'Teacher') { ?>
+            <!-- Teacher -->
+        <?php elseif ($type_of_account === 'Enseignant'): ?>
             <h2>Teacher Dashboard</h2>
-
             <?php
-            // Get the teacher's actual ID from the reference_id in the users table
-            $get_teacher_id_query = $db->query("SELECT reference_id FROM users WHERE id = $user_id");
-            $teacher_actual_id = $get_teacher_id_query->fetchColumn();
-
-            // Get all modules assigned to this teacher
-            $get_my_modules_query = $db->prepare('SELECT * FROM modules WHERE teacher_id = ?');
-            $get_my_modules_query->execute([$teacher_actual_id]);
-            $my_modules = $get_my_modules_query->fetchAll(PDO::FETCH_ASSOC);
-
-            // Check which module is currently selected
-            $active_module_id = 0;
-            if (isset($_GET['module'])) {
-                $active_module_id = $_GET['module'];
-            } elseif (count($my_modules) > 0) {
-                $active_module_id = $my_modules[0]['id'];
-            }
+            $teacher_statement = $db->prepare("SELECT id_ref FROM utilisateurs WHERE id = ?");
+            $teacher_statement->execute([$user_id]);
+            $teacher_id_value = $teacher_statement->fetchColumn();
+            $modules = $db->prepare('SELECT * FROM modules WHERE id_enseignant = ?');
+            $modules->execute([$teacher_id_value]);
+            $my_modules = $modules->fetchAll(PDO::FETCH_ASSOC);
+            $active_module_id = $_GET['module'] ?? ($my_modules[0]['id'] ?? 0);
             ?>
-
             <p>Select a module to grade:</p>
-
-            <!-- Select Module Buttons -->
             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;">
-                <?php foreach ($my_modules as $module) { ?>
-                    <?php
-                    $button_class = 'btn btn-sm';
-                    if ($active_module_id != $module['id']) {
-                        $button_class = $button_class . ' btn-secondary';
-                    }
-                    ?>
-                    <a href="dashboard.php?module=<?php echo $module['id']; ?>" class="<?php echo $button_class; ?>">
-                        <?php echo htmlspecialchars($module['module_name']); ?>
-                    </a>
-                <?php } ?>
+                <?php foreach ($my_modules as $module): ?>
+                    <a href="dashboard.php?module=<?php echo $module['id']; ?>"
+                        class="button button-sm <?php echo ($active_module_id == $module['id']) ? '' : 'button-secondary'; ?>"><?php echo htmlspecialchars($module['intitule']); ?></a>
+                <?php endforeach; ?>
             </div>
 
-            <?php if ($active_module_id != 0) { ?>
+            <?php if ($active_module_id): ?>
                 <form method="POST" action="dashboard.php?module=<?php echo $active_module_id; ?>">
                     <input type="hidden" name="action" value="save_grades">
                     <input type="hidden" name="module_id" value="<?php echo $active_module_id; ?>">
-
                     <table>
                         <tr>
                             <th>Student Name</th>
-                            <th>Study Level</th>
+                            <th>Level</th>
                             <th>Grade (/20)</th>
                         </tr>
                         <?php
-                        // Get all students
-                        $all_students = $db->query("SELECT id, last_name, first_name, study_level FROM students ORDER BY last_name");
-                        $student_list = $all_students->fetchAll();
-
-                        foreach ($student_list as $student) {
-                            // Get the grade for this student in the selected module
-                            $get_grade_query = $db->prepare('SELECT grade_value FROM grades WHERE student_id=? AND module_id=?');
-                            $get_grade_query->execute([$student['id'], $active_module_id]);
-                            $student_grade = $get_grade_query->fetchColumn();
+                        $students = $db->query("SELECT id, nom, prenom, niveau FROM etudiants");
+                        foreach ($students->fetchAll() as $student):
+                            $gradeStmt = $db->prepare('SELECT note FROM notes WHERE id_etudiant=? AND id_module=?');
+                            $gradeStmt->execute([$student['id'], $active_module_id]);
+                            $grade = $gradeStmt->fetchColumn();
                             ?>
                             <tr>
-                                <td><?php echo htmlspecialchars($student['last_name'] . ' ' . $student['first_name']); ?></td>
-                                <td><?php echo htmlspecialchars($student['study_level']); ?></td>
-                                <td>
-                                    <input type="number" step="0.25" min="0" max="20" name="grades[<?php echo $student['id']; ?>]"
-                                        value="<?php if ($student_grade != false) {
-                                            echo htmlspecialchars($student_grade);
-                                        } ?>"
-                                        style="width:100px;margin-bottom:0;">
-                                </td>
+                                <td><?php echo htmlspecialchars($student['nom'] . ' ' . $student['prenom']); ?></td>
+                                <td><?php echo htmlspecialchars($student['niveau']); ?></td>
+                                <td><input type="number" step="0.25" min="0" max="20" name="notes[<?php echo $student['id']; ?>]"
+                                        value="<?php echo htmlspecialchars($grade !== false ? $grade : ''); ?>"
+                                        style="width:100px;margin-bottom:0;"></td>
                             </tr>
-                        <?php } ?>
+                        <?php endforeach; ?>
                     </table>
-
-                    <button type="submit" class="btn">Save Grades</button>
+                    <button type="submit" class="button">Save Grades</button>
                 </form>
-            <?php } else { ?>
+            <?php else: ?>
                 <p>You have no modules assigned.</p>
-            <?php } ?>
+            <?php endif; ?>
 
-            <!--  STUDENT DASHBOARD  -->
-        <?php } elseif ($user_role == 'Student') { ?>
+            <!-- student  -->
+        <?php elseif ($type_of_account === 'Etudiant'): ?>
             <h2>Student Dashboard</h2>
-
             <?php
-            // Get the student's actual ID from the reference_id in the users table
-            $get_student_id_query = $db->query("SELECT reference_id FROM users WHERE id = $user_id");
-            $student_actual_id = $get_student_id_query->fetchColumn();
-
-            // Get the student's information
-            $get_student_info_query = $db->query("SELECT * FROM students WHERE id = $student_actual_id");
-            $student_info = $get_student_info_query->fetch(PDO::FETCH_ASSOC);
+            $student_statement = $db->prepare("SELECT id_ref FROM utilisateurs WHERE id = ?");
+            $student_statement->execute([$user_id]);
+            $student_id = $student_statement->fetchColumn();
+            $student_info_statement = $db->prepare("SELECT * FROM etudiants WHERE id = ?");
+            $student_info_statement->execute([$student_id]);
+            $student_info = $student_info_statement->fetch(PDO::FETCH_ASSOC);
             ?>
-
-            <p>Welcome,
-                <strong><?php echo htmlspecialchars($student_info['last_name'] . ' ' . $student_info['first_name']); ?></strong>
+            <p>Welcome, <strong><?php echo htmlspecialchars($student_info['nom'] . ' ' . $student_info['prenom']); ?></strong>
             </p>
-            <p>Study Level: <strong><?php echo htmlspecialchars($student_info['study_level']); ?></strong></p>
-
+            <p>Level: <strong><?php echo htmlspecialchars($student_info['niveau']); ?></strong></p>
             <div style="margin-bottom:20px;">
-                <a href="transcript.php" class="btn" target="_blank">Print Transcript</a>
+                <a href="transcript.php" class="button" target="_blank">Print Transcript</a>
             </div>
-
             <table>
                 <tr>
-                    <th>Module Name</th>
+                    <th>Module</th>
                     <th>Coefficient</th>
-                    <th>Grade (/20)</th>
+                    <th>Grade</th>
                 </tr>
                 <?php
-                // Get all modules and grades for this student
-                $get_student_grades_query = $db->prepare("
-                    SELECT modules.module_name, modules.coefficient, grades.grade_value 
-                    FROM modules 
-                    LEFT JOIN grades ON modules.id = grades.module_id AND grades.student_id = ?
-                ");
-                $get_student_grades_query->execute([$student_actual_id]);
-                $results = $get_student_grades_query->fetchAll(PDO::FETCH_ASSOC);
-
+                $stmt = $db->prepare("SELECT m.intitule as nom_module, m.coefficient, n.note FROM modules m LEFT JOIN notes n ON m.id=n.id_module AND n.id_etudiant=?");
+                $stmt->execute([$student_id]);
+                $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 $total_points = 0;
-                $total_coefficients = 0;
-
-                foreach ($results as $result) {
-                    // Calculate total points for the average
-                    if ($result['grade_value'] != null) {
-                        $points = $result['grade_value'] * $result['coefficient'];
-                        $total_points = $total_points + $points;
-                        $total_coefficients = $total_coefficients + $result['coefficient'];
+                $total_coeffs = 0;
+                foreach ($results as $r):
+                    if ($r['note'] !== null) {
+                        $total_points += $r['note'] * $r['coefficient'];
+                        $total_coeffs += $r['coefficient'];
                     }
                     ?>
                     <tr>
-                        <td><?php echo htmlspecialchars($result['module_name']); ?></td>
-                        <td><?php echo $result['coefficient']; ?></td>
-                        <td>
-                            <?php
-                            if ($result['grade_value'] != null) {
-                                echo $result['grade_value'];
-                            } else {
-                                echo 'N/A'; // Not available
-                            }
-                            ?>
-                        </td>
+                        <td><?php echo htmlspecialchars($r['nom_module']); ?></td>
+                        <td><?php echo $r['coefficient']; ?></td>
+                        <td><?php echo ($r['note'] !== null) ? $r['note'] : 'N/A'; ?></td>
                     </tr>
-                <?php } ?>
+                <?php endforeach; ?>
             </table>
-
-            <?php
-            // Calculate and show the average if they have grades
-            if ($total_coefficients > 0) {
-                $average = $total_points / $total_coefficients;
-                ?>
+            <?php if ($total_coeffs > 0): ?>
+                <?php $average_grade = $total_points / $total_coeffs; ?>
                 <div class="alert" style="text-align:center;font-size:20px;font-weight:bold;">
-                    Overall Average: <?php echo number_format($average, 2); ?> / 20
+                    Average: <?php echo number_format($average_grade, 2); ?> / 20
                 </div>
-            <?php } ?>
-
-        <?php } ?>
+            <?php endif; ?>
+        <?php endif; ?>
 
     </div>
 
-    <div class="footer">
-        © 2025/2026 University Portal
-    </div>
+    <div class="footer">© 2025/2026 University Portal</div>
 
 </body>
 
