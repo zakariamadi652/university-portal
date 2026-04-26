@@ -1,21 +1,17 @@
 <?php
-// create_student.php - Add New Student Page
+// Adding New Student Page
 session_start();
-
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'Admin') {
     header('Location: login.php');
     exit;
 }
-
 $role = $_SESSION['user_role'];
 $username = $_SESSION['username'];
-
 try {
     $db = new PDO('mysql:host=localhost;dbname=gestion_scolarite;charset=utf8mb4', 'root', '');
-    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-} catch (PDOException $e) {
-    die("Database connection failed.");
-}
+    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);} 
+    catch (PDOException $e) {
+    die("Database connection failed.");}
 
 $message = '';
 $msg_type = '';
@@ -29,28 +25,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $niveau = $_POST['niveau'] ?? '';
 
         if ($nom && $prenom && $email && $date_naissance && $niveau) {
-            // Check if email is already used
+            // Checking if email is already used
             $check = $db->prepare('SELECT COUNT(*) FROM etudiants WHERE email = ?');
             $check->execute([$email]);
             if ($check->fetchColumn() > 0) {
                 $message = "A student with this email already exists.";
                 $msg_type = 'error';
             } else {
-                // Generate matricule
+                // Generating matricule for the student
                 $year = date('Y');
                 $count = $db->query("SELECT COUNT(*) FROM etudiants")->fetchColumn() + 1;
                 $matricule = "ETU" . $year . str_pad($count, 3, '0', STR_PAD_LEFT);
 
-                // Insert student
+                // Inserting the student
                 $stmt = $db->prepare('INSERT INTO etudiants (matricule, nom, prenom, email, date_naissance, niveau) VALUES (?, ?, ?, ?, ?, ?)');
                 $stmt->execute([$matricule, $nom, $prenom, $email, $date_naissance, $niveau]);
                 $etu_id = $db->lastInsertId();
 
-                // Create login account: email is the username, default password is the matricule
+                // to Create login account, the email is the username, default password is the matricule
                 $pw = password_hash($matricule, PASSWORD_DEFAULT);
                 $stmt2 = $db->prepare('INSERT INTO utilisateurs (username, password, role, id_ref) VALUES (?, ?, ?, ?)');
                 $stmt2->execute([$email, $pw, 'Etudiant', $etu_id]);
-
                 $message = "Student added! Matricule: $matricule — Login: $email / Password: $matricule";
                 $msg_type = 'success';
             }
@@ -63,14 +58,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 ?>
 <!DOCTYPE html>
 <html lang="fr">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Add Student — University Portal</title>
     <link rel="stylesheet" href="style.css?v=<?php echo time(); ?>">
 </head>
-
 <body>
 
     <div class="header">
@@ -102,35 +95,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <form method="POST" action="create_student.php">
             <input type="hidden" name="action" value="add_student">
 
-            <label>First Name:</label>
-            <input type="text" name="prenom" required placeholder="Enter first name">
-
-            <label>Last Name:</label>
-            <input type="text" name="nom" required placeholder="Enter last name">
-
-            <label>Email (used for login):</label>
-            <input type="email" name="email" required placeholder="student@university.dz">
-
-            <label>Date of Birth:</label>
-            <input type="date" name="date_naissance" required>
-
-            <label>Level:</label>
-            <select name="niveau" required>
-                <option value="L1 Informatique">L1 Informatique</option>
-                <option value="L2 Informatique">L2 Informatique</option>
-                <option value="L3 Informatique" selected>L3 Informatique</option>
-            </select>
-
+        <label>First Name:</label>
+        <input type="text" name="prenom" required placeholder="Enter first name">
+        <label>Last Name:</label>
+        <input type="text" name="nom" required placeholder="Enter last name">
+        <label>Email (used for login):</label>
+        <input type="email" name="email" required placeholder="student@university.dz">
+        <label>Date of Birth:</label>
+        <input type="date" name="date_naissance" required>
+        <label>Level:</label>
+        <select name="niveau" required>
+        <option value="L1 Informatique">L1 Informatique</option>
+        <option value="L2 Informatique">L2 Informatique</option>
+        <option value="L3 Informatique" selected>L3 Informatique</option>
+        </select>
             <div style="display:flex;gap:12px;margin-top:8px;">
                 <button type="submit" class="btn">Add Student</button>
                 <a href="dashboard.php?tab=students" class="btn btn-secondary">Cancel</a>
             </div>
         </form>
-
     </div>
-
     <div class="footer">© 2025/2026 University Portal</div>
-
 </body>
-
 </html>
